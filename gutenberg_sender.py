@@ -13,6 +13,9 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+from spreadsheet_scheduler import schedule_on_spreadsheet
+
+
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://mail.google.com/']
 
@@ -47,6 +50,28 @@ def send_message(service, user_id, message):
     except Exception as e:
         print('An error occurred: %s' % e)
         return None
+
+
+
+def use_appropriate_regexes(text):
+    returned_dates = []
+    date_to_chapter = {} #maybe use this at some point later
+    int_to_chapter = {}
+    counter = 1
+    for chapter in text:
+        match_date1 = r'(\d+)\w* (January|February|March|April|May|June|July|August|September|October|November|December)'
+        match_date2 = r'(January|February|March|April|May|June|July|August|September|October|November|December) (\d+)'
+        match_date3 = r'\d+\/\d+\/\d+'
+        possible_regexes = [match_date1, match_date2, match_date3]
+        for regex in possible_regexes:
+            if len(re.findall(regex, chapter)) == max(len(re.findall(match_date1, chapter)), len(re.findall(match_date2, chapter)), len(re.findall(match_date3, chapter))):
+                returned_dates.append(re.findall(regex, chapter)[0])
+                date_to_chapter[chapter] = re.findall(regex, chapter)[0]
+                int_to_chapter[counter] = chapter
+                counter += 1
+
+    #return returned_dates
+    return [date_to_chapter, int_to_chapter, returned_dates]
 
 
 def chapter_split(url):
@@ -99,10 +124,18 @@ def main():
         my_url = input("Please enter the link to the HTML version of Project Gutenberg text: ")
         chapters = chapter_split(my_url)
 
-        for chapter in chapters:
-            msg = create_message("aidanmpcurran@gmail.com", "ferguscurran1@gmail.com", "Email bot test", chapter)
-            send_message( service ,"aidanmpcurran@gmail.com" ,msg) #service, userID, message
-            #https://www.gutenberg.org/files/521/521-h/521-h.htm
+        send_as_drafts = input("If this is an epistolary novel, would you like to create drafts at the appropriate times?: ")
+        if send_as_drafts == "N":
+            for chapter in chapters:
+                msg = create_message("aidanmpcurran@gmail.com", "aidan.miguel.curran@berkeley.edu", "Email bot test", chapter)
+                send_message( service ,"aidanmpcurran@gmail.com" ,msg) #service, userID, message
+                #https://www.gutenberg.org/files/521/521-h/521-h.htm
+        else:
+            funcCall = use_appropriate_regexes(chapters)
+            schedule_on_spreadsheet(funcCall)
+
+
+
 ##
 
     except HttpError as error:
